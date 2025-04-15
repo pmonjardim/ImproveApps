@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Painel de Diagnóstico Ambiente WebRTC</title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      margin: 20px; 
+      background-color: #f5f5f5; 
+    }
+    h1 { 
+      color: #333; 
+    }
+    #output { 
+      margin-top: 20px; 
+      background-color: #fff; 
+      padding: 15px; 
+      border: 1px solid #ddd; 
+      border-radius: 4px;
+      max-width: 600px;
+    }
+    div.ok { 
+      color: green;
+      margin-bottom: 5px;
+    }
+    div.warn { 
+      color: orange;
+      margin-bottom: 5px;
+    }
+    div.error { 
+      color: red;
+      margin-bottom: 5px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 14px;
+      margin-right: 10px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>Painel de Diagnóstico Ambiente WebRTC</h1>
+  <button onclick="diagnostico()">Reiniciar Diagnóstico</button>
+  <button onclick="exportarCSV()">Exportar CSV</button>
+  <div id="output"></div>
+
+  <script>
+    let resultados = [];
+
+    /**
+     * Registra uma mensagem no painel e armazena o registro
+     * @param {string} msg - Mensagem a ser exibida
+     * @param {string} [status='ok'] - Status da mensagem (ok, warn, error)
+     */
+    function log(msg, status = 'ok') {
+      const div = document.createElement('div');
+      div.innerHTML = msg;
+      div.className = status;
+      document.getElementById('output').appendChild(div);
+      resultados.push({ msg, status });
+    }
+
+    /**
+     * Executa os testes de diagnóstico do ambiente WebRTC
+     */
+    async function diagnostico() {
+      // Limpa painel e resultados anteriores
+      document.getElementById('output').innerHTML = '';
+      resultados = [];
+      
+      log('🔍 Iniciando diagnóstico de ambiente WebRTC...');
+
+      // Teste de memória, se suportado
+      if (performance && performance.memory) {
+        const used = (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(2);
+        const total = (performance.memory.totalJSHeapSize / 1024 / 1024).toFixed(2);
+        log(`📋 Memória usada: <strong>${used} MB</strong>`, 'ok');
+        log(`📦 Total alocada: <strong>${total} MB</strong>`, 'ok');
+      } else {
+        log('⚠️ Navegador não suporta diagnóstico de heap memory.', 'warn');
+      }
+
+      // Verifica se a aba está ativa
+      log(`🪟 Aba ativa: <strong>${document.hasFocus() ? 'Sim' : 'Não'}</strong>`, document.hasFocus() ? 'ok' : 'warn');
+
+      // Teste do WebSocket
+      try {
+        const ws = new WebSocket("wss://echo.websocket.events");
+        ws.onopen = () => log('✅ WebSocket conectado (rede ok)', 'ok');
+        ws.onerror = () => log('❌ Falha ao conectar WebSocket', 'error');
+      } catch (e) {
+        log('❌ Erro ao tentar WebSocket: ' + e.message, 'error');
+      }
+
+      // Testa dispositivos de mídia (microfones e alto-falantes)
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const mics = devices.filter(d => d.kind === 'audioinput');
+        const spks = devices.filter(d => d.kind === 'audiooutput');
+        log(`🎤 Microfones detectados: <strong>${mics.length}</strong>`, mics.length ? 'ok' : 'warn');
+        log(`🔈 Alto-falantes detectados: <strong>${spks.length}</strong>`, spks.length ? 'ok' : 'warn');
+      } catch (e) {
+        log('❌ Erro ao acessar dispositivos de mídia: ' + e.message, 'error');
+      }
+
+      // Verifica permissão do microfone
+      try {
+        const micPermission = await navigator.permissions.query({ name: 'microphone' });
+        log(`🔐 Permissão do microfone: <strong>${micPermission.state}</strong>`, micPermission.state === 'granted' ? 'ok' : 'warn');
+      } catch (e) {
+        log('⚠️ Não foi possível verificar permissão de microfone.', 'warn');
+      }
+    }
+
+    /**
+     * Exporta os resultados do diagnóstico para um arquivo CSV
+     */
+    function exportarCSV() {
+      if (resultados.length === 0) {
+        alert("Não há resultados para exportar!");
+        return;
+      }
+      let csvContent = "data:text/csv;charset=utf-8,Mensagem,Status\n";
+      resultados.forEach(resultado => {
+        // Remove tags HTML da mensagem antes da exportação
+        const textoLimpo = resultado.msg.replace(/<[^>]+>/g, '');
+        csvContent += `"${textoLimpo}","${resultado.status}"\n`;
+      });
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "diagnostico_resultados.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // Executa o diagnóstico ao carregar a página
+    diagnostico();
+  </script>
+</body>
+</html>
